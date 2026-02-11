@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { Entropy } from '@/components/ui/entropy';
 
 export function EntropyDemo() {

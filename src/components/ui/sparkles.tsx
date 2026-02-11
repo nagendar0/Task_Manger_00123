@@ -31,7 +31,7 @@ export const SparklesCore = ({
   const particlesRef = useRef<
     { x: number; y: number; r: number; vx: number; vy: number }[]
   >([]);
-  const frameRef = useRef<number>();
+  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;

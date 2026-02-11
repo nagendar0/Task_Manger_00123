@@ -14,6 +14,7 @@ export function Entropy({ className = '', size = 400 }: EntropyProps) {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const context = ctx;
 
     // Base settings
     const dpr = window.devicePixelRatio || 1;
@@ -21,7 +22,7 @@ export function Entropy({ className = '', size = 400 }: EntropyProps) {
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
-    ctx.scale(dpr, dpr);
+    context.scale(dpr, dpr);
 
     // Dark theme particles
     const particleColor = '#ffffff';
@@ -128,7 +129,7 @@ export function Entropy({ className = '', size = 400 }: EntropyProps) {
     let animationId: number;
 
     function animate() {
-      ctx.clearRect(0, 0, size, size);
+      context.clearRect(0, 0, size, size);
 
       if (time % 30 === 0) {
         updateNeighbors();
@@ -136,33 +137,33 @@ export function Entropy({ className = '', size = 400 }: EntropyProps) {
 
       particles.forEach((particle) => {
         particle.update();
-        particle.draw(ctx);
+        particle.draw(context);
 
         particle.neighbors.forEach((neighbor) => {
           const distance = Math.hypot(particle.x - neighbor.x, particle.y - neighbor.y);
           if (distance < 50) {
             const alpha = 0.2 * (1 - distance / 50);
-            ctx.strokeStyle = `${particleColor}${Math.round(alpha * 255)
+            context.strokeStyle = `${particleColor}${Math.round(alpha * 255)
               .toString(16)
               .padStart(2, '0')}`;
-            ctx.beginPath();
-            ctx.moveTo(particle.x, particle.y);
-            ctx.lineTo(neighbor.x, neighbor.y);
-            ctx.stroke();
+            context.beginPath();
+            context.moveTo(particle.x, particle.y);
+            context.lineTo(neighbor.x, neighbor.y);
+            context.stroke();
           }
         });
       });
 
-      ctx.strokeStyle = `${particleColor}4D`;
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(size / 2, 0);
-      ctx.lineTo(size / 2, size);
-      ctx.stroke();
+      context.strokeStyle = `${particleColor}4D`;
+      context.lineWidth = 0.5;
+      context.beginPath();
+      context.moveTo(size / 2, 0);
+      context.lineTo(size / 2, size);
+      context.stroke();
 
-      ctx.font = '12px monospace';
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
+      context.font = '12px monospace';
+      context.fillStyle = '#ffffff';
+      context.textAlign = 'center';
 
       time += 1;
       animationId = requestAnimationFrame(animate);
@@ -186,4 +187,3 @@ export function Entropy({ className = '', size = 400 }: EntropyProps) {
     </div>
   );
 }
-

@@ -1,4 +1,3 @@
-import React from "react";
 import NeuralBackground from "@/components/ui/flow-field-background";
 
 export default function NeuralHeroDemo() {

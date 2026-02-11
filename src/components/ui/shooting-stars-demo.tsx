@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { ShootingStars } from "@/components/ui/shooting-stars";
 
 export function ShootingStarsDemo() {
@@ -49,7 +48,7 @@ export function ShootingStarsDemo() {
         maxDelay={3500}
       />
 
-      <style jsx>{`
+      <style>{`
         .stars {
           background-image: radial-gradient(2px 2px at 20px 30px, #eee, rgba(0, 0, 0, 0)),
             radial-gradient(2px 2px at 40px 70px, #fff, rgba(0, 0, 0, 0)),

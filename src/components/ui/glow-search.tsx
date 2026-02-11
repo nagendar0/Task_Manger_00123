@@ -1,5 +1,3 @@
-import React from 'react';
-
 type GlowSearchProps = {
   placeholder?: string;
 };

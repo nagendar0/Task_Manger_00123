@@ -1,4 +1,4 @@
-import { ClipboardList, LogOut, Plus, UserRound } from 'lucide-react';
+import { ClipboardList, LogOut, UserRound } from 'lucide-react';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/authStore';
