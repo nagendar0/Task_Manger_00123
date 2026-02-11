@@ -190,6 +190,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
         table.id === currentId
           ? {
               ...table,
+              isSaved: false,
               rows: [...table.rows, { id: crypto.randomUUID(), time: '', task: '', selected: false }],
             }
           : table
@@ -276,14 +277,6 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
             }
           : t
       )
-    );
-    console.log(
-      'Saved',
-      current.title,
-      current.notifyDate,
-      current.notifyDaily,
-      current.notifyEmail,
-      current.rows
     );
     setSaveNote('Table saved successfully. Your tasks are now scheduled.');
     setTimeout(() => setSaveNote(''), 2500);
@@ -439,6 +432,8 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                     type="date"
                     value={current.notifyDate}
                     onChange={(e) => updateTable({ notifyDate: e.target.value })}
+                    readOnly={minimal}
+                    disabled={minimal}
                     className="hide-native-picker w-full bg-transparent pr-8 text-sm text-slate-900 focus:outline-none"
                   />
                   <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

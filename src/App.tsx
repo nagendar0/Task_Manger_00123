@@ -76,7 +76,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setView('tables');
+                    setView('tasks');
                     setShowHero(false);
                   }}
                   className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"

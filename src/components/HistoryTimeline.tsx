@@ -62,7 +62,25 @@ export function HistoryTimeline() {
       completedAt: new Date(h.completedAt),
     }));
 
-    // Include currently completed tasks that may not yet be logged (edge cases)
+    const signature = (item: {
+      title: string;
+      description: string;
+      priority: TaskPriority;
+      createdAt: Date;
+      completedAt: Date;
+    }) =>
+      [
+        item.title,
+        item.description,
+        item.priority,
+        item.createdAt.toISOString(),
+        item.completedAt.toISOString(),
+      ].join('|');
+
+    const seen = new Set(fromHistory.map((item) => signature(item)));
+
+    // Include currently completed tasks that may not yet be logged (edge cases).
+    // Skip entries already represented in persisted history to avoid duplicates.
     const fromTasks: CompletedWithDates[] = tasks
       .filter((t) => t.completed)
       .map((t) => {
@@ -76,6 +94,12 @@ export function HistoryTimeline() {
           completedAt,
           createdAt,
         };
+      })
+      .filter((item) => {
+        const key = signature(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       });
 
     return [...fromHistory, ...fromTasks].sort(

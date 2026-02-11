@@ -17,6 +17,8 @@ interface TaskState {
   setStatusMessage: (msg?: string) => void;
 }
 
+type PersistedTaskState = Partial<Pick<TaskState, 'history'>>;
+
 export const useTaskStore = create<TaskState>()(
   persist(
     (set) => ({
@@ -40,13 +42,15 @@ export const useTaskStore = create<TaskState>()(
       },
       
       toggleTask: (id) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) => {
+        set((state) => {
+          let history = state.history;
+          let statusMessage: string | undefined = state.statusMessage;
+
+          const tasks = state.tasks.map((task) => {
             if (task.id !== id) return task;
             const now = new Date();
             const completed = !task.completed;
 
-            // Append to history when a task transitions to completed
             if (completed) {
               const entry: HistoryEntry = {
                 id: crypto.randomUUID(),
@@ -56,10 +60,10 @@ export const useTaskStore = create<TaskState>()(
                 createdAt: (task.createdAt instanceof Date ? task.createdAt : new Date(task.createdAt)).toISOString(),
                 completedAt: now.toISOString(),
               };
-              state.history = [entry, ...state.history].slice(0, 500); // cap size to avoid unbounded growth
-              state.statusMessage = 'Task marked as completed';
+              history = [entry, ...history].slice(0, 500);
+              statusMessage = 'Task marked as completed';
             } else {
-              state.statusMessage = 'Task moved back to active tasks';
+              statusMessage = 'Task moved back to active tasks';
             }
 
             return {
@@ -67,9 +71,10 @@ export const useTaskStore = create<TaskState>()(
               completed,
               completedAt: completed ? now : null,
             };
-          }),
-          history: state.history,
-        }));
+          });
+
+          return { tasks, history, statusMessage };
+        });
 
         // clear message after a short delay
         setTimeout(() => {
@@ -112,12 +117,18 @@ export const useTaskStore = create<TaskState>()(
     {
       name: 'task-storage',
       version: 2,
-      migrate: (persisted: any) => {
+      partialize: (state) => ({
+        tasks: state.tasks,
+        history: state.history,
+        filter: state.filter,
+      }),
+      migrate: (persisted: unknown) => {
+        const state = (persisted ?? {}) as PersistedTaskState;
         // ensure history exists after upgrade
-        if (persisted && !persisted.history) {
-          persisted.history = [];
+        if (!Array.isArray(state.history)) {
+          state.history = [];
         }
-        return persisted;
+        return state;
       },
     }
   )

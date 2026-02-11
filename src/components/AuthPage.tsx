@@ -279,7 +279,15 @@ export function AuthPage() {
   const displayError = localError || error;
   const isSignIn = mode === 'signin';
 
-  const isAuthPage = typeof window !== 'undefined' && window.location.pathname === '/auth';
+  const basePath = import.meta.env.BASE_URL || '/';
+  const authHref = `${basePath.replace(/\/$/, '')}/auth`;
+  const normalizePath = (path: string) => {
+    const normalized = path.replace(/\/+$/, '');
+    return normalized || '/';
+  };
+  const isAuthPage =
+    typeof window !== 'undefined' &&
+    normalizePath(window.location.pathname) === normalizePath(authHref);
 
   const AuthForm = (
     <section
@@ -289,7 +297,9 @@ export function AuthPage() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Authentication</p>
-          <h2 className="mt-1 text-3xl font-semibold text-slate-900">Log in to {appName}</h2>
+          <h2 className="mt-1 text-3xl font-semibold text-slate-900">
+            {isSignIn ? `Log in to ${appName}` : `Create your ${appName} account`}
+          </h2>
         </div>
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
           Stay signed in
@@ -395,13 +405,13 @@ export function AuthPage() {
             className="h-11 min-w-[110px] rounded-md bg-[#1f4f3c] px-5 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(31,79,60,0.35)] disabled:opacity-60"
             disabled={loading}
           >
-            {loading ? 'Logging in...' : isSignIn ? 'Log in' : 'Create account'}
+            {loading ? (isSignIn ? 'Logging in...' : 'Creating account...') : isSignIn ? 'Log in' : 'Create account'}
           </Button>
           <Button
             type="submit"
             className="grid h-11 w-12 place-items-center rounded-md bg-[#1f4f3c] text-white transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(31,79,60,0.35)] disabled:opacity-60"
             disabled={loading}
-            aria-label="Submit login"
+            aria-label={isSignIn ? 'Submit login' : 'Submit signup'}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
           </Button>
@@ -412,17 +422,31 @@ export function AuthPage() {
         By signing up, you agree to the <button className="underline">Terms of Use</button> and{' '}
         <button className="underline">Privacy Policy</button>.
       </p>
-      <p className="mt-4 text-center text-sm text-slate-600">
-        New user?{' '}
-        <button
-          type="button"
-          onClick={() => setAuthMode('signup')}
-          className="font-semibold text-slate-800 underline"
-          disabled={loading}
-        >
-          Sign up
-        </button>
-      </p>
+      {isSignIn ? (
+        <p className="mt-4 text-center text-sm text-slate-600">
+          New user?{' '}
+          <button
+            type="button"
+            onClick={() => setAuthMode('signup')}
+            className="font-semibold text-slate-800 underline"
+            disabled={loading}
+          >
+            Sign up
+          </button>
+        </p>
+      ) : (
+        <p className="mt-4 text-center text-sm text-slate-600">
+          Already have an account?{' '}
+          <button
+            type="button"
+            onClick={() => setAuthMode('signin')}
+            className="font-semibold text-slate-800 underline"
+            disabled={loading}
+          >
+            Sign in
+          </button>
+        </p>
+      )}
     </section>
   );
 
@@ -459,7 +483,7 @@ export function AuthPage() {
               {/* Brand tag removed per request */}
 
               <a
-                href="/auth"
+                href={authHref}
                 className={primaryActionClass}
                 aria-label="Go to sign in page"
               >
