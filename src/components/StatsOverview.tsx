@@ -14,7 +14,7 @@ export function StatsOverview() {
     const lastCompleted = completedTasks
       .map((t) => (t.completedAt ? new Date(t.completedAt) : t.createdAt))
       .sort((a, b) => b.getTime() - a.getTime())[0];
-    const lastCompletedLabel = lastCompleted ? lastCompleted.toLocaleString() : '–';
+    const lastCompletedLabel = lastCompleted ? lastCompleted.toLocaleString() : '-';
 
     return { total, active, completed, completionRate, lastCompletedLabel };
   }, [tasks]);
@@ -43,7 +43,7 @@ export function StatsOverview() {
       value: `${completionRate}%`,
       icon: <Target className="h-4 w-4" />,
       accent: 'bg-indigo-100 text-indigo-800',
-      sub: lastCompletedLabel === '–' ? 'No completions yet' : `Last: ${lastCompletedLabel}`,
+      sub: lastCompletedLabel === '-' ? 'No completions yet' : `Last: ${lastCompletedLabel}`,
     },
   ];
 
