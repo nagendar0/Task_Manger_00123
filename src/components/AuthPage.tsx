@@ -280,17 +280,14 @@ export function AuthPage() {
   const isSignIn = mode === 'signin';
 
   const basePath = import.meta.env.BASE_URL || '/';
-  const localAuthHref = `${basePath.replace(/\/$/, '')}/auth`;
-  const externalSignInUrl =
-    import.meta.env.VITE_AUTH_SIGNIN_URL?.trim() || 'https://insforge.dev/auth/sign-in';
-  const authHref = externalSignInUrl;
+  const authHref = `${basePath.replace(/\/$/, '')}/auth`;
   const normalizePath = (path: string) => {
     const normalized = path.replace(/\/+$/, '');
     return normalized || '/';
   };
   const isAuthPage =
     typeof window !== 'undefined' &&
-    normalizePath(window.location.pathname) === normalizePath(localAuthHref);
+    normalizePath(window.location.pathname) === normalizePath(authHref);
 
   const AuthForm = (
     <section
@@ -316,16 +313,6 @@ export function AuthPage() {
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 w-full rounded-md border-slate-200 bg-white text-slate-800 transition hover:bg-slate-50 sm:col-span-2"
-          onClick={() => {
-            window.location.assign(externalSignInUrl);
-          }}
-        >
-          Continue on Insforge
-        </Button>
         <Button
           type="button"
           variant="outline"
