@@ -41,7 +41,7 @@ const mapAuthErrorMessage = (message: string) => {
 
 const getAuthRedirectUrl = () => {
   const basePath = import.meta.env.BASE_URL || '/';
-  return `${window.location.origin}${basePath.replace(/\/$/, '')}/auth`;
+  return new URL(basePath, window.location.origin).toString();
 };
 
 interface AuthState {

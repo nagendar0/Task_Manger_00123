@@ -203,6 +203,16 @@ export function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
   const [localNotice, setLocalNotice] = useState('');
+  const basePath = import.meta.env.BASE_URL || '/';
+  const authPath = `${basePath.replace(/\/$/, '')}/auth`;
+  const normalizePath = (path: string) => {
+    const normalized = path.replace(/\/+$/, '');
+    return normalized || '/';
+  };
+  const isLegacyAuthPath =
+    typeof window !== 'undefined' &&
+    normalizePath(window.location.pathname) === normalizePath(authPath);
+  const [showAuthForm, setShowAuthForm] = useState(isLegacyAuthPath);
 
   const {
     signIn,
@@ -278,16 +288,6 @@ export function AuthPage() {
 
   const displayError = localError || error;
   const isSignIn = mode === 'signin';
-
-  const basePath = import.meta.env.BASE_URL || '/';
-  const authHref = `${basePath.replace(/\/$/, '')}/auth`;
-  const normalizePath = (path: string) => {
-    const normalized = path.replace(/\/+$/, '');
-    return normalized || '/';
-  };
-  const isAuthPage =
-    typeof window !== 'undefined' &&
-    normalizePath(window.location.pathname) === normalizePath(authHref);
 
   const AuthForm = (
     <section
@@ -450,7 +450,7 @@ export function AuthPage() {
     </section>
   );
 
-  if (isAuthPage) {
+  if (showAuthForm) {
     return (
       <div className="relative min-h-screen overflow-hidden bg-[#f0eef6] px-4 py-10 text-slate-900 sm:px-6">
         <NeuralBackground
@@ -482,14 +482,15 @@ export function AuthPage() {
             <div className="flex items-start justify-end gap-4">
               {/* Brand tag removed per request */}
 
-              <a
-                href={authHref}
+              <button
+                type="button"
+                onClick={() => setShowAuthForm(true)}
                 className={primaryActionClass}
-                aria-label="Go to sign in page"
+                aria-label="Open sign in form"
               >
                 Sign in
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </a>
+              </button>
             </div>
           </header>
 
