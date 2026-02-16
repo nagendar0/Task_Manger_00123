@@ -140,7 +140,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
         title: current.title || 'Table task',
-        description: `Row marked done${current.notifyDate ? ` · Notify ${current.notifyDate}` : ''}`,
+        description: `Row marked done${current.notifyDate ? ` - Notify ${current.notifyDate}` : ''}`,
         priority: 'low',
         createdAt: new Date(current.createdAt || Date.now()).toISOString(),
         completedAt: new Date().toISOString(),
@@ -287,23 +287,25 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
   };
 
   return (
-    <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_36px_rgba(15,23,42,0.12)]">
+    <section className="space-y-4 rounded-3xl border border-cyan-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.92)_58%,rgba(236,254,255,0.9)_100%)] p-6 shadow-[0_20px_40px_rgba(14,165,233,0.14)]">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Structured tables</p>
-            <h3 className="text-2xl font-semibold text-slate-900">Schedule our task</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">Structured tables</p>
+            <h3 className="bg-gradient-to-r from-slate-900 via-cyan-800 to-teal-800 bg-clip-text text-2xl font-semibold text-transparent">
+              Schedule your tasks
+            </h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             {minimal && (
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search table name"
-                  className="h-14 w-72 rounded-full border border-slate-200 bg-white pl-12 pr-4 text-[20px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+                  className="h-12 w-full rounded-full border border-cyan-200 bg-white/95 pl-12 pr-4 text-base text-slate-700 placeholder:text-slate-400 shadow-inner focus:border-cyan-400 focus:outline-none sm:w-72 sm:text-lg"
                 />
               </div>
             )}
@@ -311,7 +313,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
               <button
                 type="button"
                 onClick={addTable}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0ea5e9] to-[#14b8a6] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(14,165,233,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(14,165,233,0.35)]"
               >
                 <Plus className="h-4 w-4" />
                 Add table
@@ -324,7 +326,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
             <button
               type="button"
               onClick={() => setShowDetails(false)}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-100"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/85 px-4 py-2 text-sm font-semibold text-cyan-800 transition hover:-translate-y-0.5 hover:bg-cyan-50"
             >
               Back
             </button>
@@ -333,13 +335,13 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       </div>
 
       {errorNote && (
-        <div className="w-fit rounded-full bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm">
+        <div className="w-fit rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm">
           {errorNote}
         </div>
       )}
 
       {saveNote && (
-        <div className="w-fit rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm">
+        <div className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm">
           {saveNote}
         </div>
       )}
@@ -352,8 +354,8 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
             filteredTables.map((table) => {
               const total = table.rows.length;
               const completed = table.rows.filter((r) => r.selected).length;
-              const createdLabel = table.createdAt ? new Date(table.createdAt).toLocaleDateString() : '—';
-              const notifyLabel = table.notifyDate || '—';
+              const createdLabel = table.createdAt ? new Date(table.createdAt).toLocaleDateString() : '--';
+              const notifyLabel = table.notifyDate || '--';
               return (
                 <button
                   key={table.id}
@@ -361,12 +363,12 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                     setActiveId(table.id);
                     setShowDetails(true);
                   }}
-                  className="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
+                  className="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-[linear-gradient(130deg,#eff6ff_0%,#ecfeff_100%)] px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(14,165,233,0.14)]"
                 >
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Table</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">Table</p>
                     <p className="text-lg font-semibold text-slate-900">{table.title}</p>
-                    <p className="text-sm text-slate-500">Created {createdLabel}</p>
+                    <p className="text-sm text-slate-600">Created {createdLabel}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700">
                     <span>Total: {total}</span>
@@ -385,20 +387,20 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       {(!minimal || showDetails) && current && (
         <div className={`flex ${minimal ? 'justify-center items-start' : ''}`}>
           <div
-            className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${
+            className={`overflow-hidden rounded-2xl border border-cyan-200/70 bg-white/95 shadow-[0_14px_30px_rgba(14,165,233,0.12)] ${
               minimal ? 'w-full max-w-4xl' : 'w-full'
             }`}
           >
           <div className="flex flex-wrap items-center gap-3 px-4 pt-4">
             <div className="flex flex-col gap-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Progress</p>
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-48 rounded-full bg-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">Progress</p>
+              <div className="flex w-full flex-wrap items-center gap-3">
+                <div className="h-2 w-full max-w-[16rem] rounded-full bg-sky-100">
                   <div
                     className="h-2 rounded-full transition-all"
                     style={{
                       width: `${progressPct}%`,
-                      backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#10B981' : '#3B82F6',
+                      backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#10B981' : '#0EA5E9',
                     }}
                   />
                 </div>
@@ -413,21 +415,21 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
+          <div className="flex flex-wrap items-end gap-3 border-b border-cyan-100 px-4 py-3">
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Table name</label>
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">Table name</label>
               <input
                 type="text"
                 value={current.title}
                 onChange={(e) => updateTableTitle(e.target.value)}
                 readOnly={minimal}
-                className="w-56 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-inner focus:border-cyan-400 focus:outline-none sm:w-56"
               />
             </div>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">
                 Notify date
-                <div className="relative mt-1 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-inner">
+                <div className="relative mt-1 rounded-full border border-cyan-200 bg-white px-3 py-2 shadow-inner">
                   <input
                     type="date"
                     value={current.notifyDate}
@@ -448,14 +450,14 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                       ? 'Reminder enabled. You will be notified at the scheduled time.'
                       : 'No reminder set. Turn on notifications to receive alerts.'
                   }
-                  onChange={(e) => {
-                    updateTable({ notifyDaily: e.target.checked });
-                    setStatusMessage(e.target.checked ? 'Notifications turned on' : 'Notifications turned off');
-                    setTimeout(() => setStatusMessage(undefined), 2000);
-                  }}
-                  disabled={minimal}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400 disabled:opacity-60"
-                />
+                    onChange={(e) => {
+                      updateTable({ notifyDaily: e.target.checked });
+                      setStatusMessage(e.target.checked ? 'Notifications turned on' : 'Notifications turned off');
+                      setTimeout(() => setStatusMessage(undefined), 2000);
+                    }}
+                    disabled={minimal}
+                    className="h-4 w-4 rounded border-cyan-300 text-cyan-700 focus:ring-cyan-400 disabled:opacity-60"
+                  />
                 Every day
               </label>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -467,14 +469,14 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                       ? 'Reminder enabled. You will be notified at the scheduled time.'
                       : 'No reminder set. Turn on notifications to receive alerts.'
                   }
-                  onChange={(e) => {
-                    updateTable({ notifyEmail: e.target.checked });
-                    setStatusMessage(e.target.checked ? 'Notifications turned on' : 'Notifications turned off');
-                    setTimeout(() => setStatusMessage(undefined), 2000);
-                  }}
-                  disabled={minimal}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400 disabled:opacity-60"
-                />
+                    onChange={(e) => {
+                      updateTable({ notifyEmail: e.target.checked });
+                      setStatusMessage(e.target.checked ? 'Notifications turned on' : 'Notifications turned off');
+                      setTimeout(() => setStatusMessage(undefined), 2000);
+                    }}
+                    disabled={minimal}
+                    className="h-4 w-4 rounded border-cyan-300 text-cyan-700 focus:ring-cyan-400 disabled:opacity-60"
+                  />
                 Notify by email
               </label>
             </div>
@@ -483,7 +485,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                 <button
                   type="button"
                   onClick={addRow}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                  className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-[#0ea5e9] to-[#14b8a6] px-4 py-2 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(14,165,233,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(14,165,233,0.34)]"
                 >
                   <Plus className="h-4 w-4" />
                   Add row
@@ -494,7 +496,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
 
           <div className="w-full overflow-x-auto">
             <table className="min-w-full text-sm text-slate-700">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <thead className="bg-[linear-gradient(120deg,#eff6ff_0%,#ecfeff_100%)] text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">
                 <tr>
                   {showSelection && <th className="px-3 py-3 text-left">Select</th>}
                   <th className="px-3 py-3 text-left">No</th>
@@ -505,7 +507,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
               </thead>
               <tbody>
                 {current.rows.map((row, idx) => (
-                  <tr key={row.id} className="border-t border-slate-100">
+                  <tr key={row.id} className="border-t border-cyan-100/80 transition-colors hover:bg-cyan-50/30">
                     {showSelection && (
                       <td className="px-3 py-3 text-left">
                         <input
@@ -516,7 +518,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                             if (row.selected) return;
                             updateRow(row.id, { selected: true });
                           }}
-                          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400 disabled:opacity-60"
+                          className="h-4 w-4 rounded border-cyan-300 text-cyan-700 focus:ring-cyan-400 disabled:opacity-60"
                         />
                       </td>
                     )}
@@ -530,7 +532,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                           onChange={(e) => updateRow(row.id, { time: e.target.value })}
                           readOnly={minimal}
                           disabled={minimal}
-                          className={`hide-native-picker w-full rounded-full border border-slate-200 bg-white px-4 py-2 pr-10 text-sm shadow-inner focus:border-slate-400 focus:outline-none disabled:text-slate-400 ${
+                          className={`hide-native-picker w-full rounded-full border border-cyan-200 bg-white px-4 py-2 pr-10 text-sm shadow-inner focus:border-cyan-400 focus:outline-none disabled:text-slate-400 ${
                             row.selected ? 'text-slate-400 line-through' : 'text-slate-900'
                           }`}
                         />
@@ -545,7 +547,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                         placeholder="What to perform"
                         readOnly={minimal}
                         disabled={minimal}
-                        className={`w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-sm shadow-inner focus:border-slate-400 focus:outline-none disabled:text-slate-400 ${
+                        className={`w-full rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm shadow-inner focus:border-cyan-400 focus:outline-none disabled:text-slate-400 ${
                           row.selected ? 'text-slate-400 line-through' : 'text-slate-900'
                         }`}
                       />
@@ -555,7 +557,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                         <button
                           type="button"
                           onClick={() => removeRow(row.id)}
-                          className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-100"
+                          className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50/70 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:-translate-y-0.5 hover:bg-rose-100"
                           aria-label="Delete row"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -577,7 +579,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
           <button
             type="button"
             onClick={onSave}
-            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0ea5e9] to-[#14b8a6] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(14,165,233,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(14,165,233,0.35)]"
           >
             <Check className="h-4 w-4" />
             Save Table

@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  LayoutDashboard,
+  Loader2,
+  Table2,
+  TimerReset,
+} from 'lucide-react';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
 import { TaskList } from '@/components/TaskList';
 import { TaskFilter } from '@/components/TaskFilter';
@@ -11,6 +19,12 @@ import { HistoryTimeline } from '@/components/HistoryTimeline';
 import { StatsOverview } from '@/components/StatsOverview';
 import { ScheduleBoard } from '@/components/ScheduleBoard';
 
+const toDate = (value: Date | string | null | undefined): Date | null => {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 function App() {
   const { user, initialized, initialize } = useAuthStore();
   const [view, setView] = useState<'tasks' | 'history' | 'tables'>('tasks');
@@ -19,6 +33,41 @@ function App() {
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.completed).length;
   const [showHero, setShowHero] = useState(true);
+  const tabs = [
+    { id: 'tasks', label: 'Tasks', icon: <LayoutDashboard className="h-4 w-4" /> },
+    { id: 'tables', label: 'Tables', icon: <Table2 className="h-4 w-4" /> },
+    { id: 'history', label: 'History', icon: <TimerReset className="h-4 w-4" /> },
+  ] as const;
+
+  const summary = useMemo(() => {
+    const now = Date.now();
+    const activeTasks = tasks.filter((task) => !task.completed);
+    const highPriorityCount = activeTasks.filter((task) => task.priority === 'high').length;
+    const datedTasks = activeTasks
+      .map((task) => ({ task, dueDate: toDate(task.dueAt) }))
+      .filter(
+        (entry): entry is { task: (typeof activeTasks)[number]; dueDate: Date } => entry.dueDate !== null
+      );
+
+    const dueSoonCount = datedTasks.filter((entry) => {
+      const delta = entry.dueDate.getTime() - now;
+      return delta >= 0 && delta <= 48 * 60 * 60 * 1000;
+    }).length;
+    const overdueCount = datedTasks.filter((entry) => entry.dueDate.getTime() < now).length;
+    const nextDue = datedTasks
+      .filter((entry) => entry.dueDate.getTime() >= now)
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+    const completionRate = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+    return {
+      activeCount: activeTasks.length,
+      highPriorityCount,
+      dueSoonCount,
+      overdueCount,
+      completionRate,
+      nextDueLabel: nextDue ? `${nextDue.task.title} - ${nextDue.dueDate.toLocaleString()}` : 'No upcoming due tasks.',
+    };
+  }, [tasks, totalTasks, completedTasks]);
 
   useEffect(() => {
     initialize();
@@ -43,131 +92,212 @@ function App() {
 
   // Show main app if logged in
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F9FAFB' }}>
-      <div className="container mx-auto max-w-5xl px-4 py-8">
+    <div className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(135deg,#fff7ed_0%,#eff6ff_45%,#ecfeff_100%)]">
+      <div className="pointer-events-none absolute -left-24 top-8 h-80 w-80 rounded-full bg-[#fb7185]/20 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-36 h-96 w-96 rounded-full bg-[#38bdf8]/20 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[#34d399]/20 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.06)_1px,transparent_0)] [background-size:26px_26px] opacity-20" />
+
+      <div className="relative mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
         <Navbar />
 
-        <div className="mb-4 space-y-2">
-          {statusMessage && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm">
-              {statusMessage}
+        <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-2">
+            {statusMessage && (
+              <div className="rounded-xl border border-emerald-200/80 bg-[linear-gradient(120deg,#ecfdf5_0%,#d1fae5_100%)] px-4 py-3 text-sm font-semibold text-emerald-800 shadow-[0_10px_22px_rgba(16,185,129,0.12)]">
+                {statusMessage}
+              </div>
+            )}
+            {totalTasks > 0 && (
+              <div className="rounded-xl border border-sky-200/70 bg-[linear-gradient(120deg,#eff6ff_0%,#ecfeff_100%)] px-4 py-3 text-sm font-semibold text-slate-800 shadow-[0_10px_22px_rgba(14,165,233,0.12)]">
+                {completedTasks} of {totalTasks} tasks completed
+              </div>
+            )}
+            {totalTasks > 0 && completedTasks === totalTasks && (
+              <div className="rounded-xl border border-emerald-200/80 bg-[linear-gradient(120deg,#ecfdf5_0%,#d1fae5_100%)] px-4 py-3 text-sm font-semibold text-emerald-800 shadow-[0_10px_22px_rgba(16,185,129,0.12)]">
+                All tasks in this table are completed
+              </div>
+            )}
+          </div>
+
+          <aside className="rounded-2xl border border-sky-200/70 bg-[linear-gradient(150deg,rgba(255,255,255,0.95)_0%,rgba(236,254,255,0.92)_100%)] px-4 py-3 shadow-[0_12px_30px_rgba(14,165,233,0.12)] backdrop-blur">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">Workspace pulse</p>
+              <CheckCircle2 className="h-4 w-4 text-sky-600" />
             </div>
-          )}
-          {totalTasks > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm">
-              {completedTasks} of {totalTasks} tasks completed
+            <p className="mt-2 bg-gradient-to-r from-sky-700 via-cyan-700 to-emerald-700 bg-clip-text text-2xl font-semibold text-transparent">
+              {summary.completionRate}%
+            </p>
+            <p className="text-xs text-slate-600">Overall completion rate</p>
+            <div className="mt-3 h-2 rounded-full bg-white/80">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#0ea5e9] via-[#06b6d4] to-[#22c55e]"
+                style={{ width: `${summary.completionRate}%` }}
+              />
             </div>
-          )}
-          {totalTasks > 0 && completedTasks === totalTasks && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm">
-              All tasks in this table are completed
+            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-semibold text-slate-700">
+              <span className="rounded-lg bg-sky-100/80 px-2 py-1 text-center text-sky-700">Active {summary.activeCount}</span>
+              <span className="rounded-lg bg-amber-100/80 px-2 py-1 text-center text-amber-700">Soon {summary.dueSoonCount}</span>
+              <span className="rounded-lg bg-rose-100/80 px-2 py-1 text-center text-rose-700">Overdue {summary.overdueCount}</span>
             </div>
-          )}
+          </aside>
         </div>
 
         {showHero && (
-          <div className="mb-6 space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Welcome to Structured Tables</p>
-                <h1 className="text-2xl font-semibold text-slate-900">Create tables to schedule tasks by time and receive reminders automatically.</h1>
+          <section className="relative mb-6 overflow-hidden rounded-[1.75rem] border border-white/70 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(255,247,237,0.93)_45%,rgba(236,254,255,0.93)_100%)] shadow-[0_22px_52px_rgba(15,23,42,0.12)] backdrop-blur">
+            <div className="pointer-events-none absolute right-0 top-0 h-56 w-56 rounded-full bg-[#38bdf8]/25 blur-3xl" />
+            <div className="pointer-events-none absolute bottom-0 left-0 h-52 w-52 rounded-full bg-[#f97316]/20 blur-3xl" />
+            <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">Welcome to structured tables</p>
+                  <h1 className="mt-1 bg-gradient-to-r from-slate-900 via-cyan-800 to-teal-800 bg-clip-text text-2xl font-semibold leading-tight text-transparent sm:text-3xl">
+                    Build layered schedules, assign priorities, and track momentum across every screen size.
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-700 sm:text-base">
+                    The dashboard adapts from compact mobile stacks to multi-column workspace views on larger displays.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setView('tasks');
+                      setShowHero(false);
+                    }}
+                    className="rounded-full bg-gradient-to-r from-[#0ea5e9] to-[#14b8a6] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(14,165,233,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(14,165,233,0.35)]"
+                  >
+                    Start planning now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowHero(false)}
+                    className="rounded-full border border-cyan-200 bg-white/90 px-5 py-3 text-sm font-semibold text-cyan-800 transition hover:-translate-y-0.5 hover:shadow-sm"
+                  >
+                    Hide intro
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setView('tasks');
-                    setShowHero(false);
-                  }}
-                  className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  Create your first table
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowHero(false)}
-                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:shadow-sm"
-                >
-                  Got it
-                </button>
+
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="rounded-2xl border border-rose-200/70 bg-[linear-gradient(135deg,#fff1f2_0%,#ffffff_100%)] px-4 py-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rose-700">High priority</p>
+                  <p className="mt-1 text-2xl font-semibold text-rose-800">{summary.highPriorityCount}</p>
+                  <p className="text-xs text-rose-700/80">Urgent active tasks</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200/70 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_100%)] px-4 py-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Due soon</p>
+                  <p className="mt-1 text-2xl font-semibold text-amber-800">{summary.dueSoonCount}</p>
+                  <p className="text-xs text-amber-700/80">Within 48 hours</p>
+                </div>
+                <div className="rounded-2xl border border-cyan-200/70 bg-[linear-gradient(135deg,#ecfeff_0%,#ffffff_100%)] px-4 py-3 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">Next due task</p>
+                  <p className="mt-1 text-sm font-semibold text-cyan-900">{summary.nextDueLabel}</p>
+                </div>
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm">
-              Mobile banner: Optimized for mobile. Swipe horizontally to view full table details. Rotate your device for the best viewing experience.
-            </div>
-          </div>
+          </section>
         )}
 
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2 rounded-2xl border border-sky-200/60 bg-[linear-gradient(120deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.92)_100%)] p-2 shadow-sm xl:w-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  view === tab.id
+                    ? 'bg-gradient-to-r from-[#0ea5e9] to-[#14b8a6] text-white shadow-[0_10px_20px_rgba(14,165,233,0.3)]'
+                    : 'text-slate-700 hover:-translate-y-0.5 hover:bg-white'
+                }`}
+                onClick={() => setView(tab.id)}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
           <button
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              view === 'tasks'
-                ? 'bg-black text-white shadow-sm'
-                : 'bg-white text-slate-700 border border-slate-200 hover:-translate-y-0.5 hover:shadow-sm'
-            }`}
-            onClick={() => setView('tasks')}
+            type="button"
+            onClick={() => setShowHero((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-800 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
           >
-            Tasks
-          </button>
-          <button
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              view === 'tables'
-                ? 'bg-black text-white shadow-sm'
-                : 'bg-white text-slate-700 border border-slate-200 hover:-translate-y-0.5 hover:shadow-sm'
-            }`}
-            onClick={() => setView('tables')}
-          >
-            Tables
-          </button>
-          <button
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              view === 'history'
-                ? 'bg-black text-white shadow-sm'
-                : 'bg-white text-slate-700 border border-slate-200 hover:-translate-y-0.5 hover:shadow-sm'
-            }`}
-            onClick={() => setView('history')}
-          >
-            History
+            <CalendarClock className="h-4 w-4" />
+            {showHero ? 'Collapse Intro' : 'Expand Intro'}
           </button>
         </div>
 
         {view === 'tasks' && (
-          <div className="mb-6">
-            <StatsOverview />
-          </div>
-        )}
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-6">
+              <StatsOverview />
+              <ScheduleBoard />
+              <section className="rounded-2xl border border-sky-200/60 bg-[linear-gradient(145deg,rgba(255,255,255,0.94)_0%,rgba(239,246,255,0.92)_100%)] p-4 shadow-[0_12px_26px_rgba(14,165,233,0.12)] sm:p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold text-slate-900">Task Queue</h2>
+                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                    {summary.activeCount} active
+                  </span>
+                </div>
+                <TaskList />
+              </section>
+            </div>
 
-        {view === 'tasks' && (
-          <div className="mb-6">
-            <ScheduleBoard />
+            <aside className="space-y-4 2xl:sticky 2xl:top-6 2xl:self-start">
+              <section className="rounded-2xl border border-cyan-200/70 bg-[linear-gradient(145deg,rgba(236,254,255,0.93)_0%,rgba(255,255,255,0.92)_100%)] p-4 shadow-[0_12px_26px_rgba(8,145,178,0.14)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">Quick actions</p>
+                <h3 className="mt-1 text-lg font-semibold text-cyan-900">Capture tasks fast</h3>
+                <p className="mt-1 text-sm text-cyan-900/80">
+                  Add a task with due date and priority from anywhere in the dashboard.
+                </p>
+                <div className="mt-4">
+                  <AddTaskDialog triggerClassName="w-full justify-center rounded-xl bg-gradient-to-r from-[#0ea5e9] to-[#14b8a6] py-6 text-sm font-semibold text-white hover:from-[#0284c7] hover:to-[#0f766e]" />
+                </div>
+              </section>
+
+              <TaskFilter />
+
+              <section className="rounded-2xl border border-amber-200/70 bg-[linear-gradient(145deg,rgba(255,251,235,0.94)_0%,rgba(255,255,255,0.93)_100%)] p-4 shadow-[0_12px_26px_rgba(245,158,11,0.12)]">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Deadline radar</p>
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  <p className="rounded-xl bg-white/80 px-3 py-2">
+                    Overdue tasks: <span className="font-semibold text-rose-700">{summary.overdueCount}</span>
+                  </p>
+                  <p className="rounded-xl bg-white/80 px-3 py-2">
+                    Due in 48h: <span className="font-semibold text-amber-700">{summary.dueSoonCount}</span>
+                  </p>
+                  <p className="rounded-xl bg-white/80 px-3 py-2 text-xs sm:text-sm">{summary.nextDueLabel}</p>
+                </div>
+              </section>
+            </aside>
           </div>
         )}
 
         {view === 'tables' && (
-          <div className="mb-6">
+          <main className="space-y-6">
+            <section className="rounded-2xl border border-cyan-200/70 bg-[linear-gradient(135deg,rgba(236,254,255,0.95)_0%,rgba(255,255,255,0.92)_100%)] px-4 py-3 shadow-[0_12px_26px_rgba(8,145,178,0.14)] sm:px-5">
+              <h2 className="text-lg font-semibold text-slate-900">Saved Tables Workspace</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Search your saved tables and open detailed schedule rows from any device width.
+              </p>
+            </section>
             <ScheduleBoard minimal />
-          </div>
+          </main>
         )}
 
-        {view === 'tasks' ? (
-          <>
-            <div className="mb-6 hidden sm:block">
-              <AddTaskDialog />
-            </div>
-
-            <div className="mb-6">
-              <TaskFilter />
-            </div>
-
-            <main>
-              <TaskList />
-            </main>
-          </>
-        ) : view === 'history' ? (
+        {view === 'history' && (
           <main className="space-y-4">
+            <section className="rounded-2xl border border-sky-200/70 bg-[linear-gradient(135deg,rgba(239,246,255,0.95)_0%,rgba(255,255,255,0.92)_100%)] px-4 py-3 shadow-[0_12px_26px_rgba(14,165,233,0.12)] sm:px-5">
+              <h2 className="text-lg font-semibold text-slate-900">Completion History</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Timeline view of finished tasks and completion speed metrics.
+              </p>
+            </section>
             <HistoryTimeline />
           </main>
-        ) : null}
+        )}
       </div>
     </div>
   );
