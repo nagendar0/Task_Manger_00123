@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "npm run lint && npm run build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "redeploy": "npm run build && npx --yes vercel@50.15.1 --prod --yes"
   },
   "dependencies": {
     "@insforge/sdk": "^1.1.5",
