@@ -26,6 +26,7 @@ export function AddTaskDialog({ triggerClassName }: AddTaskDialogProps) {
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [dueDate, setDueDate] = useState('');
   const [dueTime, setDueTime] = useState('');
+  const [restMinutes, setRestMinutes] = useState('');
   const addTask = useTaskStore((state) => state.addTask);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -39,12 +40,17 @@ export function AddTaskDialog({ triggerClassName }: AddTaskDialogProps) {
       dueAt = new Date(`${dueDate}T00:00:00`);
     }
 
-    addTask(title.trim(), description.trim(), priority, dueAt);
+    const parsedRestMinutes = Number.parseInt(restMinutes, 10);
+    const normalizedRestMinutes =
+      Number.isFinite(parsedRestMinutes) && parsedRestMinutes > 0 ? parsedRestMinutes : null;
+
+    addTask(title.trim(), description.trim(), priority, dueAt, normalizedRestMinutes);
     setTitle('');
     setDescription('');
     setPriority('medium');
     setDueDate('');
     setDueTime('');
+    setRestMinutes('');
     setOpen(false);
   };
 
@@ -117,6 +123,20 @@ export function AddTaskDialog({ triggerClassName }: AddTaskDialogProps) {
                   onChange={(e) => setDueTime(e.target.value)}
                 />
               </div>
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="restMinutes" className="text-sm font-medium">
+                Rest reminder (minutes after start)
+              </label>
+              <Input
+                id="restMinutes"
+                type="number"
+                min={1}
+                step={1}
+                value={restMinutes}
+                onChange={(e) => setRestMinutes(e.target.value)}
+                placeholder="e.g. 15"
+              />
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium">Priority</label>

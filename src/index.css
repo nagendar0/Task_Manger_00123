@@ -705,6 +705,38 @@ body {
   }
 }
 
+@keyframes orb-drift-slow {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14px, -20px, 0) scale(1.05);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes orb-drift-reverse {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-18px, 16px, 0) scale(0.96);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-orb-drift-slow {
+  animation: orb-drift-slow 17s ease-in-out infinite;
+}
+
+.animate-orb-drift-reverse {
+  animation: orb-drift-reverse 21s ease-in-out infinite;
+}
+
 @keyframes pulse-soft {
   0%,
   100% {

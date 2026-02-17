@@ -7,6 +7,7 @@ export interface Task {
   completed: boolean;
   completedAt?: Date | string | null;
   dueAt?: Date | string | null;
+  restMinutes?: number | null;
   priority: TaskPriority;
   createdAt: Date;
 }

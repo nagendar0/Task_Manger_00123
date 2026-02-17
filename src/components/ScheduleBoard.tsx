@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Plus, Check, Clock, Search, Calendar, Trash2 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
+import { useAuthStore } from '@/store/authStore';
+import { insforge, isInsforgeConfigured } from '@/lib/insforge';
 import type { HistoryEntry } from '@/types/task';
 
 type TableRow = {
   id: string;
   time: string;
+  restMinutes: string;
   task: string;
   selected: boolean;
 };
@@ -15,6 +18,8 @@ type TaskTable = {
   title: string;
   createdAt: string;
   notifyDate: string;
+  startNotifyTime: string;
+  restNotifyTime: string;
   notifyDaily: boolean;
   notifyEmail: boolean;
   isSaved: boolean;
@@ -23,13 +28,130 @@ type TaskTable = {
 
 const TABLES_STORAGE_KEY = 'schedule-board-tables-v1';
 const ACTIVE_TABLE_STORAGE_KEY = 'schedule-board-active-table-v1';
+const NOTIFIED_EVENTS_STORAGE_KEY = 'schedule-board-notified-events-v1';
+const NOTIFICATION_WINDOW_MS = 90 * 1000;
+
+const toLocalDateKey = (value: Date) => {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const combineDateAndTime = (dateValue: string, timeValue: string) => {
+  const [yearRaw, monthRaw, dayRaw] = dateValue.split('-').map(Number);
+  const [hoursRaw, minutesRaw] = timeValue.split(':').map(Number);
+
+  if (
+    !Number.isFinite(yearRaw) ||
+    !Number.isFinite(monthRaw) ||
+    !Number.isFinite(dayRaw) ||
+    !Number.isFinite(hoursRaw) ||
+    !Number.isFinite(minutesRaw)
+  ) {
+    return null;
+  }
+
+  const composed = new Date(yearRaw, monthRaw - 1, dayRaw, hoursRaw, minutesRaw, 0, 0);
+  return Number.isNaN(composed.getTime()) ? null : composed;
+};
+
+const parsePositiveMinutes = (value: string) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const resolveTableSchedule = (table: TaskTable, timeValue: string, now: Date) => {
+  if (!table.notifyDate || !timeValue) {
+    return null;
+  }
+
+  if (table.notifyDaily) {
+    const todayKey = toLocalDateKey(now);
+    if (todayKey < table.notifyDate) {
+      return null;
+    }
+    const when = combineDateAndTime(todayKey, timeValue);
+    if (!when) {
+      return null;
+    }
+    return { when, occurrenceKey: todayKey };
+  }
+
+  const when = combineDateAndTime(table.notifyDate, timeValue);
+  if (!when) {
+    return null;
+  }
+  return { when, occurrenceKey: table.notifyDate };
+};
 
 const createDefaultRow = (): TableRow => ({
   id: crypto.randomUUID(),
   time: '',
+  restMinutes: '',
   task: '',
   selected: false,
 });
+
+const normalizeRow = (row: Partial<TableRow> | null | undefined): TableRow => ({
+  id: row?.id || crypto.randomUUID(),
+  time: typeof row?.time === 'string' ? row.time : '',
+  restMinutes: typeof row?.restMinutes === 'string' ? row.restMinutes : '',
+  task: typeof row?.task === 'string' ? row.task : '',
+  selected: Boolean(row?.selected),
+});
+
+const rowHasContent = (row: TableRow) =>
+  row.task.trim().length > 0 || row.time.trim().length > 0 || row.restMinutes.trim().length > 0;
+
+const toOrdinal = (position: number) => {
+  if (position % 100 >= 11 && position % 100 <= 13) {
+    return `${position}th`;
+  }
+  const remainder = position % 10;
+  if (remainder === 1) return `${position}st`;
+  if (remainder === 2) return `${position}nd`;
+  if (remainder === 3) return `${position}rd`;
+  return `${position}th`;
+};
+
+const loadNotifiedEvents = (): Record<string, string> => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const raw = localStorage.getItem(NOTIFIED_EVENTS_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const trimNotifiedEvents = (events: Record<string, string>) => {
+  const entries = Object.entries(events);
+  if (entries.length <= 1500) {
+    return events;
+  }
+  const sorted = entries.sort((a, b) => new Date(a[1]).getTime() - new Date(b[1]).getTime());
+  const trimmed = sorted.slice(Math.max(0, sorted.length - 1000));
+  return Object.fromEntries(trimmed);
+};
 
 const loadTables = (): TaskTable[] => {
   if (typeof window === 'undefined') {
@@ -53,7 +175,13 @@ const loadTables = (): TaskTable[] => {
       .map((table) => ({
         ...table,
         createdAt: table.createdAt || new Date().toISOString(),
-        rows: Array.isArray(table.rows) && table.rows.length > 0 ? table.rows : [createDefaultRow()],
+        notifyDate: table.notifyDate || '',
+        startNotifyTime: table.startNotifyTime || '',
+        restNotifyTime: table.restNotifyTime || '',
+        rows:
+          Array.isArray(table.rows) && table.rows.length > 0
+            ? table.rows.map((row) => normalizeRow(row))
+            : [createDefaultRow()],
       }));
   } catch {
     return [];
@@ -75,12 +203,14 @@ type ScheduleBoardProps = {
 export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
   const [tables, setTables] = useState<TaskTable[]>(loadTables);
   const [activeId, setActiveId] = useState<string>(loadActiveId);
+  const [notifiedEvents, setNotifiedEvents] = useState<Record<string, string>>(loadNotifiedEvents);
   const [search, setSearch] = useState('');
   const [saveNote, setSaveNote] = useState('');
   const [errorNote, setErrorNote] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const addHistoryEntry = useTaskStore((s) => s.addHistoryEntry);
   const setStatusMessage = useTaskStore((s) => s.setStatusMessage);
+  const user = useAuthStore((s) => s.user);
 
   const current = tables.find((t) => t.id === activeId) ?? tables[0];
   const currentId = current?.id ?? '';
@@ -117,11 +247,171 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
     localStorage.setItem(ACTIVE_TABLE_STORAGE_KEY, activeId);
   }, [activeId]);
 
+  useEffect(() => {
+    localStorage.setItem(NOTIFIED_EVENTS_STORAGE_KEY, JSON.stringify(trimNotifiedEvents(notifiedEvents)));
+  }, [notifiedEvents]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let running = false;
+
+    const tick = async () => {
+      if (running) {
+        return;
+      }
+
+      running = true;
+      try {
+        const now = new Date();
+        const nowMs = now.getTime();
+        const pendingMarks: Record<string, string> = {};
+        const dueNotifications: { key: string; subject: string; html: string; label: string }[] = [];
+
+        for (const table of tables) {
+          if (!table.isSaved || !table.notifyEmail || !table.notifyDate) {
+            continue;
+          }
+
+          const nextPendingIndex = table.rows.findIndex((row) => !row.selected && rowHasContent(row));
+          if (nextPendingIndex === -1) {
+            continue;
+          }
+
+          const row = table.rows[nextPendingIndex];
+          const taskName = row.task.trim() || `Task ${nextPendingIndex + 1}`;
+          const safeTask = escapeHtml(taskName);
+          const safeTable = escapeHtml(table.title || 'Task Table');
+          const startTime = row.time || table.startNotifyTime;
+          const startSchedule = startTime ? resolveTableSchedule(table, startTime, now) : null;
+
+          if (startSchedule) {
+            const delta = nowMs - startSchedule.when.getTime();
+            const startKey = `${table.id}:${row.id}:start:${startSchedule.occurrenceKey}`;
+            if (delta >= 0 && delta <= NOTIFICATION_WINDOW_MS && !notifiedEvents[startKey]) {
+              dueNotifications.push({
+                key: startKey,
+                label: `Start reminder for ${taskName}`,
+                subject: `Your task is started: ${taskName}`,
+                html: `<h2>Task Start Reminder</h2><p><strong>Table:</strong> ${safeTable}</p><p><strong>Task:</strong> ${safeTask}</p><p><strong>Start time:</strong> ${escapeHtml(
+                  startSchedule.when.toLocaleString()
+                )}</p><p>Next task notifications stay locked until this task is marked with a tick.</p>`,
+              });
+            }
+
+            const restMinutes = parsePositiveMinutes(row.restMinutes);
+            if (restMinutes) {
+              const restWhen = new Date(startSchedule.when.getTime() + restMinutes * 60 * 1000);
+              const restDelta = nowMs - restWhen.getTime();
+              const restKey = `${table.id}:${row.id}:rest-minutes:${startSchedule.occurrenceKey}`;
+              if (restDelta >= 0 && restDelta <= NOTIFICATION_WINDOW_MS && !notifiedEvents[restKey]) {
+                dueNotifications.push({
+                  key: restKey,
+                  label: `Rest reminder for ${taskName}`,
+                  subject: `Rest time reminder: ${taskName}`,
+                  html: `<h2>Rest Time Reminder</h2><p><strong>Table:</strong> ${safeTable}</p><p><strong>Task:</strong> ${safeTask}</p><p><strong>Rest after:</strong> ${restMinutes} minutes</p><p><strong>Reminder time:</strong> ${escapeHtml(
+                    restWhen.toLocaleString()
+                  )}</p>`,
+                });
+              }
+            }
+          }
+
+          if (table.restNotifyTime) {
+            const restSchedule = resolveTableSchedule(table, table.restNotifyTime, now);
+            if (restSchedule) {
+              const restDelta = nowMs - restSchedule.when.getTime();
+              const restKey = `${table.id}:${row.id}:rest-clock:${restSchedule.occurrenceKey}`;
+              if (restDelta >= 0 && restDelta <= NOTIFICATION_WINDOW_MS && !notifiedEvents[restKey]) {
+                dueNotifications.push({
+                  key: restKey,
+                  label: `Rest reminder for ${taskName}`,
+                  subject: `Rest time reminder: ${taskName}`,
+                  html: `<h2>Rest Time Reminder</h2><p><strong>Table:</strong> ${safeTable}</p><p><strong>Task:</strong> ${safeTask}</p><p><strong>Reminder time:</strong> ${escapeHtml(
+                    restSchedule.when.toLocaleString()
+                  )}</p>`,
+                });
+              }
+            }
+          }
+        }
+
+        if (dueNotifications.length === 0 || cancelled) {
+          return;
+        }
+
+        if (!user?.email) {
+          setStatusMessage('No signed-in email found for notifications.');
+          setTimeout(() => setStatusMessage(undefined), 2800);
+          return;
+        }
+
+        if (!insforge || !isInsforgeConfigured) {
+          setStatusMessage('Email notifications are not configured.');
+          setTimeout(() => setStatusMessage(undefined), 2800);
+          return;
+        }
+
+        const recipientEmail = user.email;
+
+        for (const notification of dueNotifications) {
+          if (cancelled || pendingMarks[notification.key] || notifiedEvents[notification.key]) {
+            continue;
+          }
+
+          const { error } = await insforge.emails.send({
+            to: recipientEmail,
+            subject: notification.subject,
+            html: notification.html,
+          });
+
+          if (!error) {
+            pendingMarks[notification.key] = new Date().toISOString();
+            setStatusMessage(`${notification.label} sent to ${recipientEmail}`);
+            setTimeout(() => setStatusMessage(undefined), 2200);
+          } else {
+            setStatusMessage(error.message || 'Email notification failed.');
+            setTimeout(() => setStatusMessage(undefined), 2800);
+          }
+        }
+
+        if (Object.keys(pendingMarks).length > 0 && !cancelled) {
+          setNotifiedEvents((prev) => trimNotifiedEvents({ ...prev, ...pendingMarks }));
+        }
+      } finally {
+        running = false;
+      }
+    };
+
+    void tick();
+    const intervalId = window.setInterval(() => {
+      void tick();
+    }, 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [tables, notifiedEvents, setStatusMessage, user?.email]);
+
   const updateRow = (rowId: string, patch: Partial<TableRow>) => {
     const selectionOnlyPatch =
       Object.keys(patch).length === 1 && Object.prototype.hasOwnProperty.call(patch, 'selected');
 
-    const wasSelected = patch.selected === true && current?.rows.find((r) => r.id === rowId)?.selected !== true;
+    const rowIndex = current?.rows.findIndex((r) => r.id === rowId) ?? -1;
+    const selectedRow = rowIndex >= 0 && current ? current.rows[rowIndex] : null;
+    const hasPendingBefore =
+      patch.selected === true &&
+      current !== undefined &&
+      rowIndex > 0 &&
+      current.rows.slice(0, rowIndex).some((row) => !row.selected && rowHasContent(row));
+
+    if (hasPendingBefore) {
+      setStatusMessage('Complete or tick previous task first before moving to next task.');
+      setTimeout(() => setStatusMessage(undefined), 2400);
+      return;
+    }
+
+    const wasSelected = patch.selected === true && selectedRow?.selected !== true;
 
     setTables((prev) =>
       prev.map((table) =>
@@ -137,17 +427,41 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
     );
 
     if (wasSelected && current) {
+      const completedTaskName = selectedRow?.task.trim() || `Task ${Math.max(rowIndex + 1, 1)}`;
+      const ordinal = toOrdinal(Math.max(rowIndex + 1, 1));
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
-        title: current.title || 'Table task',
-        description: `Row marked done${current.notifyDate ? ` - Notify ${current.notifyDate}` : ''}`,
+        title: completedTaskName,
+        description: `Completed in ${current.title || 'Task Table'}${current.notifyDate ? ` - Notify ${current.notifyDate}` : ''}`,
         priority: 'low',
         createdAt: new Date(current.createdAt || Date.now()).toISOString(),
         completedAt: new Date().toISOString(),
       };
       addHistoryEntry(entry);
-      setStatusMessage('Task marked as completed');
+      setStatusMessage(`Completed: ${completedTaskName}`);
       setTimeout(() => setStatusMessage(undefined), 2000);
+
+      if (current.notifyEmail && user?.email && insforge && isInsforgeConfigured) {
+        const safeTable = escapeHtml(current.title || 'Task Table');
+        const safeTask = escapeHtml(completedTaskName);
+        void insforge.emails
+          .send({
+            to: user.email,
+            subject: `Congratulations! You completed ${completedTaskName}`,
+            html: `<h2>Great work!</h2><p>You completed the <strong>${escapeHtml(
+              ordinal
+            )}</strong> task.</p><p><strong>Task:</strong> ${safeTask}</p><p><strong>Table:</strong> ${safeTable}</p>`,
+          })
+          .then(({ error }) => {
+            if (error) {
+              setStatusMessage(error.message || 'Unable to send completion email.');
+              setTimeout(() => setStatusMessage(undefined), 2600);
+              return;
+            }
+            setStatusMessage(`Completion email sent for ${completedTaskName}`);
+            setTimeout(() => setStatusMessage(undefined), 2000);
+          });
+      }
     }
   };
 
@@ -191,7 +505,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
           ? {
               ...table,
               isSaved: false,
-              rows: [...table.rows, { id: crypto.randomUUID(), time: '', task: '', selected: false }],
+              rows: [...table.rows, createDefaultRow()],
             }
           : table
       )
@@ -219,10 +533,12 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       title: nextName,
       createdAt: new Date().toISOString(),
       notifyDate: '',
+      startNotifyTime: '',
+      restNotifyTime: '',
       notifyDaily: false,
       notifyEmail: false,
       isSaved: false,
-      rows: [{ id: crypto.randomUUID(), time: '', task: '', selected: false }],
+      rows: [createDefaultRow()],
     };
     setTables((prev) => [...prev, next]);
     setActiveId(id);
@@ -237,6 +553,8 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       title: nextName,
       createdAt: new Date().toISOString(),
       notifyDate: '',
+      startNotifyTime: '',
+      restNotifyTime: '',
       notifyDaily: false,
       notifyEmail: false,
       isSaved: false,
@@ -255,15 +573,32 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       setTimeout(() => setErrorNote(''), 2500);
       return;
     }
+
+    if (current.notifyEmail) {
+      const hasStart = Boolean(current.startNotifyTime) || current.rows.some((row) => Boolean(row.time));
+      const hasRest =
+        Boolean(current.restNotifyTime) ||
+        current.rows.some((row) => parsePositiveMinutes(row.restMinutes) !== null);
+      if (!hasStart && !hasRest) {
+        setErrorNote('Set at least one start or rest notification time for email alerts.');
+        setTimeout(() => setErrorNote(''), 2500);
+        return;
+      }
+    }
+
     setErrorNote('');
 
     const cleanedRows = current.rows.map((r) => ({
       ...r,
       // ensure each row always has a select box preserved
       selected: Boolean(r.selected),
+      restMinutes: r.restMinutes.trim(),
     }));
     const nonEmpty = cleanedRows.filter(
-      (r) => (r.time && r.time.trim().length > 0) || (r.task && r.task.trim().length > 0)
+      (r) =>
+        (r.time && r.time.trim().length > 0) ||
+        (r.task && r.task.trim().length > 0) ||
+        (r.restMinutes && r.restMinutes.trim().length > 0)
     );
     const nextRows = nonEmpty.length > 0 ? nonEmpty : [createDefaultRow()];
 
@@ -441,6 +776,34 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                   <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 </div>
               </label>
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">
+                Start time
+                <div className="relative mt-1 rounded-full border border-cyan-200 bg-white px-3 py-2 shadow-inner">
+                  <input
+                    type="time"
+                    value={current.startNotifyTime}
+                    onChange={(e) => updateTable({ startNotifyTime: e.target.value })}
+                    readOnly={minimal}
+                    disabled={minimal}
+                    className="hide-native-picker w-full bg-transparent pr-8 text-sm text-slate-900 focus:outline-none"
+                  />
+                  <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                </div>
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">
+                Rest time
+                <div className="relative mt-1 rounded-full border border-cyan-200 bg-white px-3 py-2 shadow-inner">
+                  <input
+                    type="time"
+                    value={current.restNotifyTime}
+                    onChange={(e) => updateTable({ restNotifyTime: e.target.value })}
+                    readOnly={minimal}
+                    disabled={minimal}
+                    className="hide-native-picker w-full bg-transparent pr-8 text-sm text-slate-900 focus:outline-none"
+                  />
+                  <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                </div>
+              </label>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <input
                   type="checkbox"
@@ -501,21 +864,28 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                   {showSelection && <th className="px-3 py-3 text-left">Select</th>}
                   <th className="px-3 py-3 text-left">No</th>
                   <th className="px-3 py-3 text-left">Time</th>
+                  <th className="px-3 py-3 text-left">Rest (min)</th>
                   <th className="px-3 py-3 text-left">Task to perform</th>
                   {!minimal && <th className="px-3 py-3 text-left">Delete</th>}
                 </tr>
               </thead>
               <tbody>
-                {current.rows.map((row, idx) => (
+                {current.rows.map((row, idx) => {
+                  const hasPendingBefore = current.rows
+                    .slice(0, idx)
+                    .some((prevRow) => !prevRow.selected && rowHasContent(prevRow));
+
+                  return (
                   <tr key={row.id} className="border-t border-cyan-100/80 transition-colors hover:bg-cyan-50/30">
                     {showSelection && (
                       <td className="px-3 py-3 text-left">
                         <input
                           type="checkbox"
                           checked={row.selected}
-                          disabled={row.selected}
+                          disabled={row.selected || hasPendingBefore}
+                          title={hasPendingBefore ? 'Complete previous task first.' : undefined}
                           onChange={() => {
-                            if (row.selected) return;
+                            if (row.selected || hasPendingBefore) return;
                             updateRow(row.id, { selected: true });
                           }}
                           className="h-4 w-4 rounded border-cyan-300 text-cyan-700 focus:ring-cyan-400 disabled:opacity-60"
@@ -538,6 +908,21 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                         />
                         <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={row.restMinutes}
+                        onChange={(e) => updateRow(row.id, { restMinutes: e.target.value })}
+                        placeholder="15"
+                        readOnly={minimal}
+                        disabled={minimal}
+                        className={`w-24 rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm shadow-inner focus:border-cyan-400 focus:outline-none disabled:text-slate-400 ${
+                          row.selected ? 'text-slate-400 line-through' : 'text-slate-900'
+                        }`}
+                      />
                     </td>
                     <td className="px-3 py-3">
                       <input
@@ -566,7 +951,8 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

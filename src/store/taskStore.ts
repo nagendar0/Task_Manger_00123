@@ -7,7 +7,13 @@ interface TaskState {
   history: HistoryEntry[];
   filter: 'all' | 'active' | 'completed';
   statusMessage?: string;
-  addTask: (title: string, description: string, priority: TaskPriority, dueAt?: Date | null) => void;
+  addTask: (
+    title: string,
+    description: string,
+    priority: TaskPriority,
+    dueAt?: Date | null,
+    restMinutes?: number | null
+  ) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => void;
@@ -27,7 +33,7 @@ export const useTaskStore = create<TaskState>()(
       filter: 'all',
       statusMessage: undefined,
       
-      addTask: (title, description, priority, dueAt = null) => {
+      addTask: (title, description, priority, dueAt = null, restMinutes = null) => {
         const newTask: Task = {
           id: crypto.randomUUID(),
           title,
@@ -35,6 +41,7 @@ export const useTaskStore = create<TaskState>()(
           completed: false,
           completedAt: null,
           dueAt,
+          restMinutes,
           priority,
           createdAt: new Date(),
         };
