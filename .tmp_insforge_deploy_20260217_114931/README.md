@@ -1,0 +1,11 @@
+﻿# Task_Manger_00123
+
+## Redeploy
+
+Run this command from the project root:
+
+```bash
+npm run redeploy
+```
+
+Prerequisite: Vercel auth must be valid on this machine (`vercel login` or `VERCEL_TOKEN`).
