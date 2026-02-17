@@ -3,6 +3,11 @@ import { Plus, Check, Clock, Search, Calendar, Trash2 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
 import { useAuthStore } from '@/store/authStore';
 import { insforge, isInsforgeConfigured } from '@/lib/insforge';
+import {
+  htmlToPlainText,
+  isPlanLimitedEmailError,
+  pushBrowserNotification,
+} from '@/lib/notifications';
 import type { HistoryEntry } from '@/types/task';
 
 type TableRow = {
@@ -339,25 +344,27 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
           return;
         }
 
-        if (!user?.email) {
-          setStatusMessage('No signed-in email found for notifications.');
-          setTimeout(() => setStatusMessage(undefined), 2800);
-          return;
-        }
-
-        if (!insforge || !isInsforgeConfigured) {
-          setStatusMessage('Email notifications are not configured.');
-          setTimeout(() => setStatusMessage(undefined), 2800);
-          return;
-        }
-
-        const recipientEmail = user.email;
-
         for (const notification of dueNotifications) {
           if (cancelled || pendingMarks[notification.key] || notifiedEvents[notification.key]) {
             continue;
           }
 
+          const fallbackShown = () =>
+            pushBrowserNotification(notification.subject, htmlToPlainText(notification.html));
+
+          if (!user?.email || !insforge || !isInsforgeConfigured) {
+            const shown = fallbackShown();
+            setStatusMessage(
+              shown
+                ? `${notification.label} sent as browser notification.`
+                : `${notification.label} is due.`
+            );
+            setTimeout(() => setStatusMessage(undefined), 3200);
+            pendingMarks[notification.key] = new Date().toISOString();
+            continue;
+          }
+
+          const recipientEmail = user.email;
           const { error } = await insforge.emails.send({
             to: recipientEmail,
             subject: notification.subject,
@@ -368,10 +375,24 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
             pendingMarks[notification.key] = new Date().toISOString();
             setStatusMessage(`${notification.label} sent to ${recipientEmail}`);
             setTimeout(() => setStatusMessage(undefined), 2200);
-          } else {
-            setStatusMessage(error.message || 'Email notification failed.');
-            setTimeout(() => setStatusMessage(undefined), 2800);
+            continue;
           }
+
+          const isPlanError = isPlanLimitedEmailError(error.message || '');
+          if (isPlanError) {
+            const shown = fallbackShown();
+            setStatusMessage(
+              shown
+                ? `Email disabled on free plan. Browser notification sent for ${notification.label}.`
+                : `Email disabled on free plan. Upgrade plan to receive email notifications.`
+            );
+            setTimeout(() => setStatusMessage(undefined), 6200);
+            pendingMarks[notification.key] = new Date().toISOString();
+            continue;
+          }
+
+          setStatusMessage(error.message || 'Email notification failed.');
+          setTimeout(() => setStatusMessage(undefined), 3200);
         }
 
         if (Object.keys(pendingMarks).length > 0 && !cancelled) {
@@ -444,18 +465,31 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
       if (current.notifyEmail && user?.email && insforge && isInsforgeConfigured) {
         const safeTable = escapeHtml(current.title || 'Task Table');
         const safeTask = escapeHtml(completedTaskName);
+        const completionSubject = `Congratulations! You completed ${completedTaskName}`;
+        const completionHtml = `<h2>Great work!</h2><p>You completed the <strong>${escapeHtml(
+          ordinal
+        )}</strong> task.</p><p><strong>Task:</strong> ${safeTask}</p><p><strong>Table:</strong> ${safeTable}</p>`;
         void insforge.emails
           .send({
             to: user.email,
-            subject: `Congratulations! You completed ${completedTaskName}`,
-            html: `<h2>Great work!</h2><p>You completed the <strong>${escapeHtml(
-              ordinal
-            )}</strong> task.</p><p><strong>Task:</strong> ${safeTask}</p><p><strong>Table:</strong> ${safeTable}</p>`,
+            subject: completionSubject,
+            html: completionHtml,
           })
           .then(({ error }) => {
             if (error) {
+              if (isPlanLimitedEmailError(error.message || '')) {
+                const shown = pushBrowserNotification(completionSubject, htmlToPlainText(completionHtml));
+                setStatusMessage(
+                  shown
+                    ? 'Email disabled on free plan. Completion browser notification sent.'
+                    : 'Email disabled on free plan. Upgrade plan to receive completion emails.'
+                );
+                setTimeout(() => setStatusMessage(undefined), 6200);
+                return;
+              }
+
               setStatusMessage(error.message || 'Unable to send completion email.');
-              setTimeout(() => setStatusMessage(undefined), 2600);
+              setTimeout(() => setStatusMessage(undefined), 3200);
               return;
             }
             setStatusMessage(`Completion email sent for ${completedTaskName}`);

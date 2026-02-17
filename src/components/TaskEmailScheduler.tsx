@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useAuthStore } from '@/store/authStore';
 import { insforge, isInsforgeConfigured } from '@/lib/insforge';
+import {
+  htmlToPlainText,
+  isPlanLimitedEmailError,
+  pushBrowserNotification,
+} from '@/lib/notifications';
 
 const TASK_NOTIFIED_EVENTS_STORAGE_KEY = 'task-email-notified-events-v1';
 const TASK_NOTIFICATION_WINDOW_MS = 90 * 1000;
@@ -131,25 +136,27 @@ export function TaskEmailScheduler() {
           return;
         }
 
-        if (!user?.email) {
-          setStatusMessage('No signed-in email found for task notifications.');
-          setTimeout(() => setStatusMessage(undefined), 2600);
-          return;
-        }
-
-        if (!insforge || !isInsforgeConfigured) {
-          setStatusMessage('Email notifications are not configured.');
-          setTimeout(() => setStatusMessage(undefined), 2600);
-          return;
-        }
-
-        const recipientEmail = user.email;
-
         for (const notification of dueNotifications) {
           if (cancelled || notifiedEvents[notification.key] || pendingMarks[notification.key]) {
             continue;
           }
 
+          const fallbackShown = () =>
+            pushBrowserNotification(notification.subject, htmlToPlainText(notification.html));
+
+          if (!user?.email || !insforge || !isInsforgeConfigured) {
+            const shown = fallbackShown();
+            setStatusMessage(
+              shown
+                ? `${notification.label} sent as browser notification.`
+                : `${notification.label} is due.`
+            );
+            setTimeout(() => setStatusMessage(undefined), 3200);
+            pendingMarks[notification.key] = new Date().toISOString();
+            continue;
+          }
+
+          const recipientEmail = user.email;
           const { error } = await insforge.emails.send({
             to: recipientEmail,
             subject: notification.subject,
@@ -160,10 +167,24 @@ export function TaskEmailScheduler() {
             pendingMarks[notification.key] = new Date().toISOString();
             setStatusMessage(`${notification.label} sent to ${recipientEmail}`);
             setTimeout(() => setStatusMessage(undefined), 2200);
-          } else {
-            setStatusMessage(error.message || 'Task email notification failed.');
-            setTimeout(() => setStatusMessage(undefined), 2600);
+            continue;
           }
+
+          const isPlanError = isPlanLimitedEmailError(error.message || '');
+          if (isPlanError) {
+            const shown = fallbackShown();
+            setStatusMessage(
+              shown
+                ? `Email disabled on free plan. Browser notification sent for ${notification.label}.`
+                : `Email disabled on free plan. Upgrade plan to receive email notifications.`
+            );
+            setTimeout(() => setStatusMessage(undefined), 6200);
+            pendingMarks[notification.key] = new Date().toISOString();
+            continue;
+          }
+
+          setStatusMessage(error.message || 'Task email notification failed.');
+          setTimeout(() => setStatusMessage(undefined), 3200);
         }
 
         if (Object.keys(pendingMarks).length > 0 && !cancelled) {
