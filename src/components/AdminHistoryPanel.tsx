@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, ShieldAlert, Users } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, Search, ShieldAlert, Users } from 'lucide-react';
 import {
   checkTaskAdminAccess,
   fetchAdminUserHistory,
@@ -20,6 +20,25 @@ const formatDateTime = (value: string | null | undefined) => {
   return date.toLocaleString();
 };
 
+const INSFORGE_DASHBOARD_URL = 'https://insforge.dev/dashboard';
+
+const USER_SUMMARY_SQL = `select user_id, count(*) as history_count, max(completed_at) as last_completed
+from public.task_history
+group by user_id
+order by last_completed desc;`;
+
+const buildUserHistorySql = (userId: string) => `select *
+from public.task_history
+where user_id = '${userId}'
+order by completed_at desc;`;
+
+const copyText = async (value: string) => {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    throw new Error('Clipboard is not available in this browser.');
+  }
+  await navigator.clipboard.writeText(value);
+};
+
 export function AdminHistoryPanel() {
   const currentUserId = useAuthStore((state) => state.user?.id ?? '');
   const [checkingAccess, setCheckingAccess] = useState(true);
@@ -32,6 +51,7 @@ export function AdminHistoryPanel() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadHistory = async (userId: string) => {
     setHistoryLoading(true);
@@ -44,6 +64,33 @@ export function AdminHistoryPanel() {
     }
     setHistory(rows);
     setHistoryLoading(false);
+  };
+
+  const showActionMessage = (message: string) => {
+    setActionMessage(message);
+    window.setTimeout(() => setActionMessage(null), 2200);
+  };
+
+  const copySummarySql = async () => {
+    try {
+      await copyText(USER_SUMMARY_SQL);
+      showActionMessage('User summary SQL copied.');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to copy SQL.');
+    }
+  };
+
+  const copySelectedUserSql = async () => {
+    if (!selectedUserId) {
+      setErrorMessage('Select a user first.');
+      return;
+    }
+    try {
+      await copyText(buildUserHistorySql(selectedUserId));
+      showActionMessage(`History SQL copied for ${selectedUserId}.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to copy SQL.');
+    }
   };
 
   const loadUsers = async (shouldAutoSelect = true) => {
@@ -190,19 +237,55 @@ export function AdminHistoryPanel() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Admin</p>
           <h3 className="text-xl font-semibold text-slate-900">Users And Task History</h3>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            void loadUsers(false);
-            if (selectedUserId) {
-              void loadHistory(selectedUserId);
-            }
-          }}
-          className="rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
-        >
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => window.open(INSFORGE_DASHBOARD_URL, '_blank', 'noopener,noreferrer')}
+            className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open InsForge
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void copySummarySql();
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
+          >
+            <Copy className="h-4 w-4" />
+            Copy User SQL
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void copySelectedUserSql();
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
+          >
+            <Copy className="h-4 w-4" />
+            Copy Selected SQL
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void loadUsers(false);
+              if (selectedUserId) {
+                void loadHistory(selectedUserId);
+              }
+            }}
+            className="rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {actionMessage && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+          {actionMessage}
+        </div>
+      )}
 
       {errorMessage && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
