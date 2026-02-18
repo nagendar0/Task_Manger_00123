@@ -458,7 +458,7 @@ export function ScheduleBoard({ minimal = false }: ScheduleBoardProps) {
         createdAt: new Date(current.createdAt || Date.now()).toISOString(),
         completedAt: new Date().toISOString(),
       };
-      addHistoryEntry(entry);
+      addHistoryEntry(entry, { source: 'table' });
       setStatusMessage(`Completed: ${completedTaskName}`);
       setTimeout(() => setStatusMessage(undefined), 2000);
 

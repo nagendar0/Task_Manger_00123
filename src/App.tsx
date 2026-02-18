@@ -41,6 +41,9 @@ const staggerContainer = {
 
 function App() {
   const { user, initialized, initialize } = useAuthStore();
+  const loadUserData = useTaskStore((s) => s.loadUserData);
+  const resetUserData = useTaskStore((s) => s.resetUserData);
+  const isHydrating = useTaskStore((s) => s.isHydrating);
   const [view, setView] = useState<'tasks' | 'history' | 'tables'>('tasks');
   const statusMessage = useTaskStore((s) => s.statusMessage);
   const tasks = useTaskStore((s) => s.tasks);
@@ -87,6 +90,14 @@ function App() {
     initialize();
   }, [initialize]);
 
+  useEffect(() => {
+    if (!user?.id) {
+      resetUserData();
+      return;
+    }
+    void loadUserData(user.id);
+  }, [user?.id, loadUserData, resetUserData]);
+
   // Show loading while checking auth state
   if (!initialized) {
     return (
@@ -102,6 +113,17 @@ function App() {
   // Show auth page if not logged in
   if (!user) {
     return <AuthPage />;
+  }
+
+  if (isHydrating) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your secure tasks...</p>
+        </div>
+      </div>
+    );
   }
 
   // Show main app if logged in

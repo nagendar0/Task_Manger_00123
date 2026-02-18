@@ -1,4 +1,5 @@
 export type TaskPriority = 'low' | 'medium' | 'high';
+export type HistorySource = 'task' | 'table';
 
 export interface Task {
   id: string;
@@ -14,6 +15,8 @@ export interface Task {
 
 export interface HistoryEntry {
   id: string;
+  taskId?: string | null;
+  source?: HistorySource;
   title: string;
   description: string;
   priority: TaskPriority;
