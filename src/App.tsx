@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   LayoutDashboard,
   Loader2,
+  Users2,
   Table2,
   TimerReset,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import { HistoryTimeline } from '@/components/HistoryTimeline';
 import { StatsOverview } from '@/components/StatsOverview';
 import { ScheduleBoard } from '@/components/ScheduleBoard';
 import { TaskEmailScheduler } from '@/components/TaskEmailScheduler';
+import { AdminHistoryPanel } from '@/components/AdminHistoryPanel';
 
 const toDate = (value: Date | string | null | undefined): Date | null => {
   if (!value) return null;
@@ -44,7 +46,7 @@ function App() {
   const loadUserData = useTaskStore((s) => s.loadUserData);
   const resetUserData = useTaskStore((s) => s.resetUserData);
   const isHydrating = useTaskStore((s) => s.isHydrating);
-  const [view, setView] = useState<'tasks' | 'history' | 'tables'>('tasks');
+  const [view, setView] = useState<'tasks' | 'history' | 'tables' | 'users'>('tasks');
   const statusMessage = useTaskStore((s) => s.statusMessage);
   const tasks = useTaskStore((s) => s.tasks);
   const totalTasks = tasks.length;
@@ -54,6 +56,7 @@ function App() {
     { id: 'tasks', label: 'Tasks', icon: <LayoutDashboard className="h-4 w-4" /> },
     { id: 'tables', label: 'Tables', icon: <Table2 className="h-4 w-4" /> },
     { id: 'history', label: 'History', icon: <TimerReset className="h-4 w-4" /> },
+    { id: 'users', label: 'Users', icon: <Users2 className="h-4 w-4" /> },
   ] as const;
 
   const summary = useMemo(() => {
@@ -443,6 +446,32 @@ function App() {
               </motion.section>
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, delay: 0.06, ease: easeOut }}>
                 <HistoryTimeline />
+              </motion.div>
+            </motion.main>
+          )}
+
+          {view === 'users' && (
+            <motion.main
+              key="users-view"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.35, ease: easeOut }}
+              className="space-y-4"
+            >
+              <motion.section
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.42, ease: easeOut }}
+                className="rounded-2xl border border-sky-200/70 bg-[linear-gradient(135deg,rgba(239,246,255,0.95)_0%,rgba(255,255,255,0.92)_100%)] px-4 py-3 shadow-[0_12px_26px_rgba(14,165,233,0.12)] sm:px-5"
+              >
+                <h2 className="text-lg font-semibold text-slate-900">User History Admin</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Click any user ID to see all their stored task completion history.
+                </p>
+              </motion.section>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, delay: 0.06, ease: easeOut }}>
+                <AdminHistoryPanel />
               </motion.div>
             </motion.main>
           )}

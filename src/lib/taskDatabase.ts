@@ -28,6 +28,40 @@ type HistoryRow = {
   completed_at: string;
 };
 
+type AdminUserSummaryRow = {
+  user_id: string;
+  open_tasks: number;
+  completed_tasks: number;
+  history_entries: number;
+  last_completed_at: string | null;
+};
+
+type AdminHistoryRow = {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  source: string;
+  title: string;
+  description: string;
+  priority: string;
+  created_at: string;
+  completed_at: string;
+  logged_at: string;
+};
+
+export type AdminUserSummary = {
+  userId: string;
+  openTasks: number;
+  completedTasks: number;
+  historyEntries: number;
+  lastCompletedAt: string | null;
+};
+
+export type AdminHistoryEntry = HistoryEntry & {
+  userId: string;
+  loggedAt: string;
+};
+
 const normalizePriority = (value: string | null | undefined): TaskPriority => {
   if (value === 'low' || value === 'high' || value === 'medium') {
     return value;
@@ -101,6 +135,27 @@ const mapHistoryRow = (row: HistoryRow): HistoryEntry => ({
   priority: normalizePriority(row.priority),
   createdAt: toRequiredIsoString(row.created_at),
   completedAt: toRequiredIsoString(row.completed_at),
+});
+
+const mapAdminUserSummaryRow = (row: AdminUserSummaryRow): AdminUserSummary => ({
+  userId: row.user_id,
+  openTasks: Number(row.open_tasks) || 0,
+  completedTasks: Number(row.completed_tasks) || 0,
+  historyEntries: Number(row.history_entries) || 0,
+  lastCompletedAt: row.last_completed_at ? toRequiredIsoString(row.last_completed_at) : null,
+});
+
+const mapAdminHistoryRow = (row: AdminHistoryRow): AdminHistoryEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  taskId: row.task_id,
+  source: normalizeSource(row.source),
+  title: row.title || '',
+  description: row.description || '',
+  priority: normalizePriority(row.priority),
+  createdAt: toRequiredIsoString(row.created_at),
+  completedAt: toRequiredIsoString(row.completed_at),
+  loggedAt: toRequiredIsoString(row.logged_at),
 });
 
 const errorMessage = (error: unknown, fallback: string) => {
@@ -284,5 +339,78 @@ export const insertHistoryRecord = async (
     return error?.message || null;
   } catch (error) {
     return errorMessage(error, 'Unable to save task history to database.');
+  }
+};
+
+const parseRpcBoolean = (value: unknown): boolean => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0] as Record<string, unknown>;
+    const candidate = first?.is_task_admin;
+    return candidate === true;
+  }
+  if (value && typeof value === 'object') {
+    const candidate = (value as Record<string, unknown>).is_task_admin;
+    return candidate === true;
+  }
+  return false;
+};
+
+export const checkTaskAdminAccess = async (): Promise<{ isAdmin: boolean; error: string | null }> => {
+  if (!isDatabaseReady()) {
+    return { isAdmin: false, error: null };
+  }
+
+  try {
+    const { data, error } = await insforge!.database.rpc('is_task_admin');
+    if (error) {
+      return { isAdmin: false, error: error.message || 'Unable to verify admin access.' };
+    }
+    return { isAdmin: parseRpcBoolean(data), error: null };
+  } catch (error) {
+    return { isAdmin: false, error: errorMessage(error, 'Unable to verify admin access.') };
+  }
+};
+
+export const fetchAdminUserSummaries = async (): Promise<{
+  users: AdminUserSummary[];
+  error: string | null;
+}> => {
+  if (!isDatabaseReady()) {
+    return { users: [], error: null };
+  }
+
+  try {
+    const { data, error } = await insforge!.database.rpc('admin_list_task_users');
+    if (error) {
+      return { users: [], error: error.message || 'Unable to load user list.' };
+    }
+    const users = ((data || []) as AdminUserSummaryRow[]).map(mapAdminUserSummaryRow);
+    return { users, error: null };
+  } catch (error) {
+    return { users: [], error: errorMessage(error, 'Unable to load user list.') };
+  }
+};
+
+export const fetchAdminUserHistory = async (
+  userId: string
+): Promise<{ history: AdminHistoryEntry[]; error: string | null }> => {
+  if (!isDatabaseReady()) {
+    return { history: [], error: null };
+  }
+
+  try {
+    const { data, error } = await insforge!.database.rpc('admin_get_user_task_history', {
+      target_user_id: userId,
+    });
+    if (error) {
+      return { history: [], error: error.message || 'Unable to load user history.' };
+    }
+    const history = ((data || []) as AdminHistoryRow[]).map(mapAdminHistoryRow);
+    return { history, error: null };
+  } catch (error) {
+    return { history: [], error: errorMessage(error, 'Unable to load user history.') };
   }
 };
